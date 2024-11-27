@@ -8,16 +8,19 @@ import 'package:you_app/ui/components/text_form_field.dart';
 
 import '../../shared/theme.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController emailController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
 
   bool isButtonEnabled = false;
 
@@ -25,13 +28,18 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     emailController.addListener(_checkButtonState);
+    usernameController.addListener(_checkButtonState);
     passwordController.addListener(_checkButtonState);
+    confirmPasswordController.addListener(_checkButtonState);
   }
 
   void _checkButtonState() {
     setState(() {
-      isButtonEnabled =
-          emailController.text.isNotEmpty && passwordController.text.isNotEmpty;
+      isButtonEnabled = emailController.text.isNotEmpty &&
+          passwordController.text.isNotEmpty &&
+          usernameController.text.isNotEmpty &&
+          confirmPasswordController.text.isNotEmpty &&
+          passwordController.value == confirmPasswordController.value;
     });
   }
 
@@ -39,6 +47,8 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    usernameController.dispose();
+    confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -47,7 +57,6 @@ class _LoginPageState extends State<LoginPage> {
     Widget navBack() {
       return Container(
           margin: const EdgeInsets.only(top: 36.0),
-          padding: EdgeInsets.only(left: navMargin),
           child: TextButton(
             onPressed: () {
               Navigator.pushNamed(context, '/home');
@@ -71,11 +80,11 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     Widget inputSection() {
-      Widget loginTitle() {
+      Widget registerTitle() {
         return Container(
           margin: EdgeInsets.only(left: navMargin),
           child: Text(
-            'Login',
+            'Register',
             style: whiteTextStyle.copyWith(fontSize: 24, fontWeight: bold),
           ),
         );
@@ -138,8 +147,10 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(8)),
                   child: BlocConsumer<AuthCubit, AuthState>(
                     listener: (context, state) {
-                      if (state is AuthSuccess) {
-                        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+                      if (state is AuthSuccessRegister) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          backgroundColor: Colors.green,
+                          content:  Text(state.auth.message)));
                       } else if (state is AuthFailed) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           backgroundColor: Colors.red,
@@ -155,10 +166,10 @@ class _LoginPageState extends State<LoginPage> {
                       return TextButton(
                           onPressed: isButtonEnabled
                               ? () {
-                                  context.read<AuthCubit>().login(email: emailController.text, username: emailController.text, password: passwordController.text);
+                                  context.read<AuthCubit>().register(email: emailController.text, username: emailController.text, password: passwordController.text);
                                 }
                               : null,
-                          child: Text('Login',
+                          child: Text('Register',
                               style: whiteTextStyle.copyWith(
                                   fontWeight: bold, fontSize: 16)));
                     },
@@ -170,23 +181,23 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
 
-      Widget registerNav() {
+      Widget loginNav() {
         return Container(
           margin: EdgeInsets.only(top: 40),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'No account? ',
+                'Have an account? ',
                 style:
                     whiteTextStyle.copyWith(fontWeight: regular, fontSize: 14),
               ),
               GestureDetector(
                 onTap: () {
-                  Navigator.pushNamed(context, '/register');
+                  Navigator.pushNamed(context, '/login');
                 },
                 child: Text(
-                  'Register here',
+                  'Login here',
                   style: goldGradientTextStyle.copyWith(
                     fontWeight: bold,
                     fontSize: 14,
@@ -204,24 +215,33 @@ class _LoginPageState extends State<LoginPage> {
 
       return Container(
         margin: const EdgeInsets.only(top: 60.0),
-        padding: EdgeInsets.symmetric(horizontal: defaultMargin),
+        padding: EdgeInsets.symmetric(horizontal: secondMargin),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          // mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            loginTitle(),
+            registerTitle(),
             InputField(
               controller: emailController,
-              hintText: 'Username/Email',
+              hintText: 'Enter Email',
+              isPassword: false,
+            ),
+            InputField(
+              controller: usernameController,
+              hintText: 'Create Username',
               isPassword: false,
             ),
             InputField(
               controller: passwordController,
-              hintText: 'Enter Password',
+              hintText: 'Create Password',
+              isPassword: true,
+            ),
+            InputField(
+              controller: confirmPasswordController,
+              hintText: 'Confirm Password',
               isPassword: true,
             ),
             submitbutton(),
-            registerNav(),
+            loginNav(),
           ],
         ),
       );
@@ -235,6 +255,7 @@ class _LoginPageState extends State<LoginPage> {
                 fit: BoxFit.cover)),
         child: SafeArea(
             child: ListView(
+          padding: EdgeInsets.symmetric(horizontal: navMargin),
           children: [
             navBack(),
             Expanded(

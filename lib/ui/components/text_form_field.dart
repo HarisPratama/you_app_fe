@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 
 class InputField extends StatefulWidget {
   final String hintText;
-  final bool isPassword; // To indicate whether the input is for a password or not
+  final bool isPassword;
+  final TextEditingController controller;
   final TextInputType keyboardType;
 
   // Constructor for initializing fields
   const InputField({
     Key? key,
     required this.hintText,
+    required this.controller,
     this.isPassword = false,
     this.keyboardType = TextInputType.text,
   }) : super(key: key);
@@ -25,6 +27,7 @@ class _InputFieldState extends State<InputField> {
     return Container(
       margin: const EdgeInsets.only(top: 15),
       child: TextFormField(
+        controller: widget.controller,
         obscureText: widget.isPassword && !_isPasswordVisible, // Toggle password visibility
         keyboardType: widget.keyboardType, // Email or Text field
         cursorColor: Colors.black,
