@@ -2,11 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:you_app/cubit/user_cubit.dart';
+import 'package:textfield_tags/textfield_tags.dart';
+import 'package:you_app/cubit/user_cubit.dart';import 'dart:math';
 
 import 'package:you_app/shared/theme.dart';
 import 'package:you_app/ui/components/input_chips.dart';
 import 'package:you_app/ui/components/text_form_field.dart';
+
+class ButtonData {
+  final Color buttonColor;
+  final String emoji;
+  const ButtonData(this.buttonColor, this.emoji);
+}
 
 class InterestEditPage extends StatefulWidget {
   const InterestEditPage({super.key});
@@ -18,7 +25,31 @@ class InterestEditPage extends StatefulWidget {
 class _InterestEditPageState extends State<InterestEditPage> {
   final TextEditingController interestController = TextEditingController();
   List<String> interests = [];
+  late StringTagController _stringTagController;
+  late double _distanceToField;
+  final random = Random();
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _distanceToField = MediaQuery.of(context).size.width;
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _stringTagController.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _stringTagController = StringTagController();
+    context.read<UserCubit>().getProfile();
+  }
+
+  static List<String> _initialTags = [];
+  
   @override
   Widget build(BuildContext context) {
     Widget navBack() {
@@ -50,7 +81,13 @@ class _InterestEditPageState extends State<InterestEditPage> {
     return Scaffold(
       body: BlocConsumer<UserCubit, UserState>(
         listener: (context, state) {
-          // TODO: implement listener
+          if (state is UserSuccess) {
+            List<String> tags = state.user.data.interests;
+
+            setState(() {
+              _initialTags = tags;
+            });
+          }
         },
         builder: (context, state) {
           if(state is UserSuccess) {
@@ -70,8 +107,19 @@ class _InterestEditPageState extends State<InterestEditPage> {
                         navBack(),
                         GestureDetector(
                           onTap: () {
-                            context.read<UserCubit>().updateProfile(state.user.data.name ?? '', state.user.data.birthday ?? '', state.user.data.height.toString(), state.user.data.weight.toString(), interests);
-                            Navigator.pushNamed(context, '/home');
+                            if (_stringTagController.getTags != null &&
+                                _stringTagController.getTags!.isNotEmpty) {
+
+                              context.read<UserCubit>().updateProfile(
+                                    state.user.data.name ?? '',
+                                    state.user.data.birthday ?? '',
+                                    state.user.data.height.toString(),
+                                    state.user.data.weight.toString(),
+                                    _stringTagController.getTags!,
+                                  );
+
+                              Navigator.pop(context);
+                            }
                           },
                           child: Text(
                             'Save',
@@ -113,29 +161,114 @@ class _InterestEditPageState extends State<InterestEditPage> {
                       // TODO: implement listener
                     },
                     builder: (context, state) {
-                      if (state is UserSuccess) {
+                      if (state is UserSuccess && state.action == 'getProfile') {
                         return Container(
-                          margin: EdgeInsets.only(top: 34),
-                          padding: EdgeInsets.symmetric(horizontal: 26),
-                          child: EditableChipField<String>(
-                            values: state.user.data.interests,
-                            hintText: 'Search for toppings',
-                            suggestionCallback: (String query) async {
-                              return state.user.data.interests
-                                  .where((String topping) =>
-                                      topping.toLowerCase().contains(query.toLowerCase()))
-                                  .toList();
-                            },
-                            onValuesChanged: (List<String> values) {
-                              print(values);
-                              setState(() {
-                                interests = values;
-                              });
-                            },
-                            chipBuilder: (BuildContext context, String topping) {
-                              return InputChip(
-                                label:   Text(topping),
-                                backgroundColor: Colors.white.withOpacity(0.1),
+                          margin: const EdgeInsets.only(top: 34),
+                          padding: const EdgeInsets.symmetric(horizontal: 26),
+                          child: TextFieldTags<String>(
+                          textfieldTagsController: _stringTagController,
+                          initialTags: _initialTags,
+                          textSeparators: const [' ', ','],
+                          letterCase: LetterCase.normal,
+                          validator: (String tag) {
+                            if (_stringTagController.getTags!.contains(tag)) {
+                              return 'You\'ve already entered that';
+                            }
+                            return null;
+                          },
+                          inputFieldBuilder: (context, inputFieldValues) {
+                            return Padding(
+                              padding: const EdgeInsets.all(10.0),
+                              child: TextField(
+                                  onTap: () {
+                                    _stringTagController.getFocusNode?.requestFocus();
+                                  },
+                                  controller: inputFieldValues.textEditingController,
+                                  focusNode: inputFieldValues.focusNode,
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    border: const OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: Color.fromARGB(255, 74, 137, 92),
+                                        width: 3.0,
+                                      ),
+                                    ),
+                                    focusedBorder: const OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: Color.fromARGB(255, 74, 137, 92),
+                                        width: 3.0,
+                                      ),
+                                    ),
+                                    hintText: '',
+                                    errorText: inputFieldValues.error,
+                                    prefixIconConstraints:
+                                        BoxConstraints(maxWidth: _distanceToField * 0.8),
+                                    prefixIcon: inputFieldValues.tags.isNotEmpty
+                                        ? SingleChildScrollView(
+                                            controller: inputFieldValues.tagScrollController,
+                                            scrollDirection: Axis.vertical,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 8,
+                                                bottom: 8,
+                                                left: 8,
+                                              ),
+                                              child: Wrap(
+                                                  runSpacing: 4.0,
+                                                  spacing: 4.0,
+                                                  children: inputFieldValues.tags
+                                                      .map((String tag) {
+                                                    return Container(
+                                                      decoration: const BoxDecoration(
+                                                        borderRadius: BorderRadius.all(
+                                                          Radius.circular(4.0),
+                                                        ),
+                                                        color: Color.fromRGBO(255, 255, 255, 0.06),
+                                                      ),
+                                                      margin: const EdgeInsets.symmetric(
+                                                          horizontal: 5.0),
+                                                      padding: const EdgeInsets.symmetric(
+                                                          horizontal: 10.0, vertical: 5.0),
+                                                      child: Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment.start,
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          InkWell(
+                                                            child: Text(
+                                                              '${tag}',
+                                                              style: whiteTextStyle.copyWith(
+                                                                fontSize: 12,
+                                                                fontWeight: semiBold
+                                                              ),
+                                                            ),
+                                                            onTap: () {
+                                                              // print("${tag.tag} selected");
+                                                            },
+                                                          ),
+                                                          const SizedBox(width: 4.0),
+                                                          InkWell(
+                                                            child: const Icon(
+                                                              Icons.cancel,
+                                                              size: 14.0,
+                                                              color: Colors.white,
+                                                            ),
+                                                            onTap: () {
+                                                              inputFieldValues
+                                                                  .onTagRemoved(tag);
+                                                            },
+                                                          )
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }).toList()),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  onChanged: inputFieldValues.onTagChanged,
+                                  onSubmitted: inputFieldValues.onTagSubmitted,
+                                ),
                               );
                             },
                           ),
