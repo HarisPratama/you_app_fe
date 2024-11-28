@@ -1,12 +1,19 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:bottom_picker/bottom_picker.dart';
 import 'package:bottom_picker/resources/arrays.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+
 import 'package:you_app/cubit/auth_cubit.dart';
 import 'package:you_app/cubit/user_cubit.dart';
+import 'package:you_app/models/user_model.dart';
 import 'package:you_app/shared/theme.dart';
 
 import '../components/select_option.dart';
@@ -27,10 +34,16 @@ class _HomePageState extends State<HomePage> {
   String? _selectedGender;
   DateTime _selectedDate = DateTime.now();
 
+  late UserData _user;
+  String profile_picture_url = 'http://res.cloudinary.com/dvktcmldp/image/upload/v1732785328/';
+  bool imageError = false;
+
+
   @override
   void initState() {
     super.initState();
     context.read<UserCubit>().getProfile();
+    _user = UserData(email: '', username: '', interests: []);
   }
 
   void _setEdit(String val) {
@@ -43,6 +56,54 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _selectedGender = newValue;
     });
+  }
+
+  void _pickImage() async {
+    print(_user);
+    if (_user.username.isEmpty) {
+      print('User data not initialized yet.');
+      return;
+    }
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'png']
+    );
+
+    try {
+      if (result != null && _user != null) {
+        final cloudinaryUrl = Uri.parse(
+        'https://api.cloudinary.com/v1_1/dvktcmldp/image/upload');
+
+        const uploadPreset = 'you_app';
+
+        File file = File(result.files.single.path!);
+
+        String newFileName = "profile_picture_${_user.username}";
+
+        var request = http.MultipartRequest('POST', cloudinaryUrl);
+        request.fields['upload_preset'] = uploadPreset;
+        request.fields['public_id'] = newFileName;
+        request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+        final response = await request.send();
+
+        if (response.statusCode == 200) {
+          final responseStream = await response.stream.toBytes();
+          final responseString = String.fromCharCodes(responseStream);
+
+          final jsonMap = jsonDecode(responseString);
+          this.context.read<UserCubit>().getProfile();
+          print('Upload successful:');
+        } else {
+          print('Upload failed with status: ${response.statusCode} ${response.reasonPhrase}');
+        }
+      } else {
+        throw ( message: 'File not found' );
+      }
+    } catch (e) {
+      print('Error uploading image: $e');
+    }
+
   }
 
   @override
@@ -77,7 +138,9 @@ class _HomePageState extends State<HomePage> {
           Row(
             children: [
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  _pickImage();
+                },
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: Size.zero,
@@ -458,6 +521,10 @@ class _HomePageState extends State<HomePage> {
             Navigator.pushNamed(context, '/login');
           }
           if (state is UserSuccess && state.action == 'getProfile') {
+            setState(() {
+              _user = state.user.data;
+              profile_picture_url = profile_picture_url + 'profile_picture_' + state.user.data.username + '.jpg';
+            });
             _nameController.text = state.user.data.name!;
             _heightController.text = state.user.data.height.toString();
             _weightController.text = state.user.data.weight.toString();
@@ -512,9 +579,15 @@ class _HomePageState extends State<HomePage> {
                         height: 190,
                         margin: const EdgeInsets.only(top: 28),
                         decoration: BoxDecoration(
-                            image: const DecorationImage(
-                                image: AssetImage('assets/default_profile_img.png'),
-                                fit: BoxFit.cover),
+                            image: DecorationImage(
+                                image: imageError ? AssetImage('assets/default_profile_img.png') : NetworkImage(profile_picture_url),
+                                fit: BoxFit.cover,
+                                onError: (exception, stackTrace) {
+                                  setState(() {
+                                    imageError = true;
+                                  });
+                                },
+                            ),
                             borderRadius: BorderRadius.circular(16)),
                         child: Padding(
                           padding: const EdgeInsets.only(
